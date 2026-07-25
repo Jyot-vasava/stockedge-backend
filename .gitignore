@@ -1,0 +1,12 @@
+.env
+# Log directory (daily logs)
+src/log/
+logs/
+
+# Node modules and build
+node_modules/
+dist/
+
+# Other
+.env.local
+.DS_Store
