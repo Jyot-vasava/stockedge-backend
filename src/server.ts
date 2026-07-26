@@ -1,26 +1,50 @@
-import dotenv from "dotenv";
-dotenv.config();
+import "./config/globalCrypto.js";
+import { createApp } from "./app.js";
+import { connectMongo, disconnectMongo } from "./config/db.js";
+import { env } from "./config/env.js";
+import { logWithSeparator, logger } from "./config/logger.js";
 
-import mongoose from "mongoose";
-import app from "./app.js";
-import logger from "./utils/logger.js";
+const main = async () => {
+  logWithSeparator("Starting backend server");
+  await connectMongo();
 
-const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI!;
+  const app = createApp();
+  const server = app.listen(env.port, () => {
+    logWithSeparator("API listening");
+  });
 
-const startServer = async () => {
-  try {
-    logger.debug("Starting backend server initialization");
-    await mongoose.connect(MONGO_URI);
-    logger.info("✅ MongoDB Connected");
-
-    app.listen(PORT, () => {
-      logger.info(`🚀 Server running on http://localhost:${PORT}`);
+  const closeServer = async () =>
+    new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      });
     });
-  } catch (error) {
-    logger.error("❌ Failed to connect to MongoDB", error);
-    process.exit(1);
-  }
+
+  const shutdown = async (signal: string) => {
+    logWithSeparator("Shutting down", { signal });
+    try {
+      await closeServer();
+      await disconnectMongo();
+      process.exit(0);
+    } catch (err) {
+      logger.error({ err }, "Shutdown failed");
+      process.exit(1);
+    }
+  };
+
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 };
 
-startServer();
+void (async () => {
+  try {
+    await main();
+  } catch (err) {
+    logger.error({ err }, "Fatal error");
+    process.exit(1);
+  }
+})();

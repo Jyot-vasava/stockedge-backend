@@ -1,34 +1,28 @@
-import express from "express";
 import cors from "cors";
+import express from "express";
 import helmet from "helmet";
-import compression from "compression";
-import testRoutes from "./routes/test.route.js";
-import logger from "./utils/logger.js";
+import morgan from "morgan";
+import { errorHandler } from "./middleware/errorHandler.js";
+import { notFoundHandler } from "./middleware/notFound.js";
+import { exampleRouter } from "./modules/example/example.routes.js";
+import { v1ApiRouter } from "./routes/v1.js";
+import { v2ApiRouter } from "./routes/v2.js";
 
-const app = express();
+export const createApp = () => {
+    const app = express();
 
-app.use(cors());
-app.use(helmet());
-app.use(compression());
-app.use(express.json());
+    app.use(helmet());
+    app.use(cors());
+    app.use(express.json({ limit: "1mb" }));
+    app.use(morgan("dev"));
 
-app.use((req, _res, next) => {
-    logger.debug(`Incoming ${req.method} request to ${req.originalUrl}`);
-    next();
-});
+    app.get("/", (_req, res) => res.json({ status: "ok" }));
+    app.use("/api/v1", v1ApiRouter);
+    app.use("/api/v2", v2ApiRouter);
+    app.use("/api", exampleRouter);
 
-app.use("/api/test", testRoutes);
+    app.use(notFoundHandler);
+    app.use(errorHandler);
 
-app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    logger.error(`Unhandled error on ${req.method} ${req.originalUrl}`, {
-        error: err.message,
-        stack: err.stack,
-    });
-
-    res.status(500).json({
-        success: false,
-        message: "Internal Server Error",
-    });
-});
-
-export default app;
+    return app;
+};
